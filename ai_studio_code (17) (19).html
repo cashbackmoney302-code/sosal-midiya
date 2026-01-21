@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>शेयरचैट जैसा ऐप</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap');
+
+        :root {
+            --primary-color: #5F259F; --secondary-color: #f0f2f5; --font-color: #333;
+            --white-color: #ffffff; --border-color: #ddd;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { overflow-x: hidden; width: 100%; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--secondary-color); color: var(--font-color); }
+        #main-content { padding-bottom: 20px; }
+        header { background-color: var(--white-color); padding: 10px; display: flex; align-items: center; position: fixed; top: 0; width: 100%; z-index: 100; border-bottom: 1px solid var(--border-color); }
+        .category-nav, .shelf-container { overflow-x: auto; white-space: nowrap; overscroll-behavior-x: contain; flex-grow: 1; }
+        .category-nav::-webkit-scrollbar, .shelf-container::-webkit-scrollbar { display: none; }
+        .category-btn { display: inline-block; padding: 8px 15px; margin: 0 4px; border-radius: 20px; background-color: var(--secondary-color); border: 1px solid var(--border-color); cursor: pointer; font-weight: 500; font-size: 0.9rem; }
+        .category-btn.active { background-color: var(--primary-color); color: var(--white-color); border-color: var(--primary-color); }
+        main { padding-top: 65px; }
+        .feed { display: none; }
+        .feed.active { display: block; }
+        #shorts-grid-container { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; padding: 5px; }
+        .shorts-grid-item { position: relative; aspect-ratio: 9 / 16; background-color: #000; cursor: pointer; border-radius: 8px; overflow: hidden; }
+        .shorts-grid-item video { width: 100%; height: 100%; object-fit: cover; }
+        .post-card { background-color: var(--white-color); border: 1px solid var(--border-color); border-radius: 8px; margin: 10px auto; max-width: 600px; overflow: hidden; position: relative; }
+        .post-content p { padding: 10px 15px; line-height: 1.5; }
+        .post-content img, .post-content video { width: 100%; max-height: 480px; object-fit: contain; background-color: #eee; display: block; }
+        .post-card[data-playmode="click"] .post-content { position: relative; cursor: pointer; }
+        .play-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; justify-content: center; align-items: center; pointer-events: none; }
+        .post-card.has-thumbnail .play-overlay { display: none; }
+        .video-duration { position: absolute; bottom: 8px; right: 8px; background-color: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; pointer-events: none; }
+        .play-overlay svg { width: 60px; height: 60px; fill: rgba(255,255,255,0.9); }
+        .post-actions { padding: 5px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #eee; background-color: #fff; }
+        .action-btn { padding: 8px; border-radius: 50%; background-color: #f0f2f5; border: none; cursor: pointer; text-decoration: none; display: flex; justify-content: center; align-items: center; }
+        .post-actions .action-btn svg { width: 22px; height: 22px; fill: #555; }
+        #player-view { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: var(--white-color); z-index: 250; overflow-y: auto; }
+        #player-view.is-minimized { background-color: transparent; pointer-events: none; overflow: hidden; }
+        #player-view.is-minimized > *:not(#player-container) { display: none; }
+        #player-container { position: sticky; top: 0; background-color: #000; z-index: 251; transition: all 0.3s ease-in-out; touch-action: none; pointer-events: auto; }
+        #player-container.mini-player { position: fixed; bottom: 60px; right: 10px; top: auto; width: 300px; max-width: 40vw; height: auto; z-index: 350; border-radius: 8px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.3); cursor: pointer; }
+        #mini-player-close-btn { display: none; position: absolute; top: -5px; right: 2px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 24px; height: 24px; font-size: 20px; line-height: 24px; text-align: center; cursor: pointer; z-index: 351; }
+        .mini-player #mini-player-close-btn { display: block; }
+        #player-container video { width: 100%; height: auto; aspect-ratio: 16 / 9; display: block; }
+        #player-header { display: flex; align-items: center; padding: 10px; background: #fafafa; border-bottom: 1px solid #ddd;}
+        .mini-player #player-header { display: none; }
+        #close-player-btn { background: none; border: none; font-size: 1.5rem; font-weight: bold; cursor: pointer; margin-right: 15px; }
+        #player-actions-container { display: none; }
+        #player-feed-container { padding: 10px 0; }
+        .shorts-shelf, .horizontal-video-shelf { padding: 10px; background: #fff; margin-bottom: 10px; max-width: 100%; margin: 10px auto; border-radius: 8px; }
+        .shorts-shelf h3, .horizontal-video-shelf h3 { margin-bottom: 10px; padding: 0 5px; }
+        .shelf-short-card { display: inline-block; width: 120px; height: 200px; margin-right: 10px; border-radius: 8px; overflow: hidden; position: relative; background: #000; cursor: pointer; vertical-align: top; }
+        .shelf-short-card video { width: 100%; height: 100%; object-fit: cover; }
+        #shorts-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 400; height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; background-color: #000; }
+        #shorts-viewer.interaction-needed::after { content: 'शुरू करने के लिए टैप करें'; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); color: white; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; z-index: 10; }
+        #shorts-viewer::-webkit-scrollbar { display: none; }
+        .short-video-card { width: 100%; height: 100vh; position: relative; scroll-snap-align: start; scroll-snap-stop: always; display: flex; align-items: center; justify-content: center; }
+        .short-video-card video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .short-actions { position: absolute; bottom: 100px; right: 10px; display: flex; flex-direction: column; gap: 20px; z-index: 10; }
+        .short-actions .action-btn { color: white; background: rgba(255,255,255,0.2); width: 45px; height: 45px; }
+        .short-actions .action-btn svg { width: 24px; height: 24px; fill: white; }
+        .play-pause-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.5); border-radius: 50%; padding: 20px; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        .play-pause-overlay.show { opacity: 1; }
+        .play-pause-overlay svg { width: 40px; height: 40px; fill: #fff; }
+        .close-shorts-btn { position: absolute; top: 55px; left: 15px; background: none; border: none; z-index: 10; cursor: pointer; }
+        .close-shorts-btn svg { width: 28px; height: 28px; fill: white; filter: drop-shadow(0 0 2px black); }
+        .hidden { display: none !important; }
+        .whatsapp-icon svg { fill: #25D366; }
+        .ringtone-icon svg { fill: #03A9F4; }
+        .wallpaper-icon svg { fill: #9C27B0; }
+        #custom-fullscreen-view { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #000; z-index: 500; justify-content: center; align-items: center; }
+        #exit-custom-fullscreen-btn { position: absolute; top: 55px; left: 15px; background: none; border: none; cursor: pointer; z-index: 502; }
+        #exit-custom-fullscreen-btn svg { width: 28px; height: 28px; fill: white; filter: drop-shadow(0 0 3px rgba(0,0,0,0.7)); }
+        #fullscreen-video-wrapper { width: 100%; height: 100%; position: relative; }
+        #fullscreen-video-wrapper video { width: 100%; height: 100%; object-fit: contain; }
+        #fullscreen-controls-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; align-items: center; gap: 40px; pointer-events: none; opacity: 0; transition: opacity 0.3s ease; z-index: 501; }
+        #fullscreen-controls-overlay.show { opacity: 1; pointer-events: all; }
+        .fs-control-btn { background: rgba(0,0,0,0.5); border: none; border-radius: 50%; cursor: pointer; padding: 15px; display: flex; justify-content: center; align-items: center; }
+        .fs-control-btn svg { width: 35px; height: 35px; fill: white; }
+        #fs-play-pause-btn svg { width: 40px; height: 40px; }
+    </style>
+</head>
+<body>
+
+<div id="main-content">
+    <header>
+        <div class="category-nav">
+             <!-- Categories will be loaded here by JavaScript -->
+        </div>
+    </header>
+    <main>
+        <div id="home-feed" class="feed active">
+            <div id="posts-container" style="display: flex; flex-direction: column;"></div>
+        </div>
+        <div id="shorts-feed" class="feed">
+            <div id="shorts-grid-container"></div>
+        </div>
+    </main>
+</div>
+
+<div id="player-view">
+    <div id="player-container">
+        <div id="player-header"><button id="close-player-btn">←</button><span>वीडियो प्लेयर</span></div>
+        <div id="player-video-container"></div>
+        <button id="mini-player-close-btn">&times;</button>
+    </div>
+    <div id="player-actions-container" class="post-actions"></div>
+    <div id="player-feed-container"></div>
+</div>
+
+<div id="shorts-viewer" class="interaction-needed"></div>
+
+<div id="custom-fullscreen-view">
+    <button id="exit-custom-fullscreen-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path></svg></button>
+    <div id="fullscreen-video-wrapper">
+        <div id="fullscreen-controls-overlay">
+            <button id="fs-prev-btn" class="fs-control-btn" title="पिछला वीडियो"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"></path></svg></button>
+            <button id="fs-play-pause-btn" class="fs-control-btn" title="रोकें/चलाएं"><svg class="play-icon hidden" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg><svg class="pause-icon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg></button>
+            <button id="fs-next-btn" class="fs-control-btn" title="अगला वीडियो"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"></path></svg></button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const SHARED_DATA_KEY = 'cashbackAppSharedData';
+
+    function getSharedData() {
+        try {
+            const data = localStorage.getItem(SHARED_DATA_KEY);
+            return data ? JSON.parse(data) : {};
+        } catch (error) {
+            console.error("Error reading shared data:", error);
+            return {};
+        }
+    }
+
+    // --- DOM ELEMENTS ---
+    const mainContent = document.getElementById('main-content');
+    const postsContainer = document.getElementById('posts-container');
+    const shortsGridContainer = document.getElementById('shorts-grid-container');
+    const shortsFeed = document.getElementById('shorts-feed');
+    const shortsViewer = document.getElementById('shorts-viewer');
+    const playerView = document.getElementById('player-view');
+    const playerContainer = document.getElementById('player-container');
+    const playerVideoContainer = document.getElementById('player-video-container');
+    const playerActionsContainer = document.getElementById('player-actions-container');
+    const playerFeedContainer = document.getElementById('player-feed-container');
+    const categoryNav = document.querySelector('.category-nav');
+    
+    const customFullscreenView = document.getElementById('custom-fullscreen-view');
+    const exitCustomFullscreenBtn = document.getElementById('exit-custom-fullscreen-btn');
+    const fullscreenVideoWrapper = document.getElementById('fullscreen-video-wrapper');
+    const fsControlsOverlay = document.getElementById('fullscreen-controls-overlay');
+    const fsPlayPauseBtn = document.getElementById('fs-play-pause-btn');
+    const fsNextBtn = document.getElementById('fs-next-btn');
+    const fsPrevBtn = document.getElementById('fs-prev-btn');
+    let originalVideoParent = null;
+    let videoInCustomFullscreen = null;
+    let currentFullscreenPostIndex = -1;
+    let controlsTimeout;
+
+    // --- DATA ---
+    let dbPosts = [];
+    let dbShorts = [];
+    let dbCategories = [];
+    let autoRefreshInterval = null;
+    let watchedItems = new Set();
+    let currentPlayerVideo = null;
+
+    // --- GLOBAL AUDIO MANAGEMENT ---
+    function pauseAllVideos(exceptThisOne) {
+        document.querySelectorAll('video').forEach(video => { if (video !== exceptThisOne) video.pause(); });
+    }
+    document.addEventListener('play', e => { if (e.target.tagName === "VIDEO") pauseAllVideos(e.target); }, true);
+
+    const formatDuration = (seconds) => {
+        if (isNaN(seconds)) return ''; const floor = Math.floor; const h = floor(seconds / 3600);
+        const m = floor((seconds % 3600) / 60); const s = floor(seconds % 60).toString().padStart(2, '0');
+        return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s}` : `${m}:${s}`;
+    }
+    
+    // --- HTML CREATION ---
+    const createPostHTML = (post) => {
+        let mediaElement = '';
+        let durationElement = post.duration ? `<span class="video-duration">${formatDuration(post.duration)}</span>` : '';
+        if (post.type === 'video') {
+            const onclickEvent = `onclick="openPlayerView('${post.id}', ${post.duration > 600})"`
+            if (post.playmode === 'click') {
+                 mediaElement = `<div class="h-card-thumbnail" ${onclickEvent}><video preload="metadata" poster="${post.thumbnail || ''}"><source src="${post.media}" type="video/mp4"></video><div class="play-overlay"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg></div>${durationElement}</div>`;
+            } else {
+                mediaElement = `<video controls autoplay loop><source src="${post.media}" type="video/mp4"></video>`;
+            }
+        } else if (post.type === 'image') {
+            mediaElement = `<img src="${post.media}" alt="Post">`;
+        }
+        const actionsHTML = (post.playmode !== 'click') ? `<div class="post-actions">
+            <a href="${post.media}" download="sharechat-media" class="action-btn" title="डाउनलोड"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"></path></svg></a>
+            ${post.type === 'image' ? 
+            `<button class="action-btn wallpaper-icon" onclick="AndroidBridge.setAsWallpaper('${post.media}')" title="वॉलपेपर सेट करें"><svg viewBox="0 0 24 24"><path d="M4 4h7V2H4c-1.1 0-2 .9-2 2v7h2V4zm6 9l-4 5h12l-3-4-2.03 2.71L10 13zm7-4.5c0-.83-.67-1.5-1.5-1.5S14 7.67 14 8.5s.67 1.5 1.5 1.5S17 9.33 17 8.5zM20 2h-7v2h7v7h2V4c0-1.1-.9-2-2-2zm0 18h-7v2h7c1.1 0 2-.9 2-2v-7h-2v7zM4 13H2v7c0 1.1.9 2 2 2h7v-2H4v-7z"></path></svg></button>`
+            : `<button class="action-btn ringtone-icon" onclick="AndroidBridge.setAsRingtone('${post.media}')" title="रिंगटोन सेट करें"><svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path></svg></button>`}
+            <button class="action-btn whatsapp-icon" onclick="AndroidBridge.shareOnWhatsApp('यह देखें: ${post.media}')" title="WhatsApp पर शेयर करें"><svg viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.296-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.289.173-1.413z"></path></svg></button>
+            <button class="action-btn share-btn" data-url="${post.media}" data-text="यह पोस्ट देखें!" title="शेयर"><svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"></path></svg></button>
+        </div>` : '';
+        return `<div class="post-card ${post.thumbnail ? 'has-thumbnail' : ''}" data-id="${post.id}" data-type="${post.type}" data-playmode="${post.playmode || ''}" data-category="${post.category || ''}"><div class="post-content">${mediaElement}</div>${actionsHTML}</div>`;
+    };
+    const createShortsShelfHTML = (shortsList) => `<div class="shorts-shelf" data-type="shorts-shelf"><h3>शॉर्ट्स</h3><div class="shelf-container">${shortsList.map(src => `<div class="shelf-short-card" data-src="${src}"><video preload="metadata" muted loop><source src="${src}" type="video/mp4"></video></div>`).join('')}</div></div>`;
+    const createShortsGridItemHTML = (src) => `<div class="shorts-grid-item" data-src="${src}"><video preload="metadata" muted loop><source src="${src}" type="video/mp4"></video></div>`;
+    const createFullScreenShortHTML = (src) => {
+        const actionsHTML = `<div class="short-actions">
+            <a href="${src}" download="sharechat-short" class="action-btn" title="डाउनलोड"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"></path></svg></a>
+            <button class="action-btn ringtone-icon" onclick="AndroidBridge.setAsRingtone('${src}')" title="रिंगटोन सेट करें"><svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"></path></svg></button>
+            <button class="action-btn whatsapp-icon" onclick="AndroidBridge.shareOnWhatsApp('यह देखें: ${src}')" title="WhatsApp पर शेयर करें"><svg viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.296-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.289.173-1.413z"></path></svg></button>
+            <button class="action-btn share-btn" data-url="${src}" data-text="यह शॉर्ट वीडियो देखें!" title="शेयर"><svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"></path></svg></button>
+        </div>`;
+        return `<div class="short-video-card" data-src="${src}"><button class="close-shorts-btn"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button><video preload="auto" loop><source src="${src}" type="video/mp4"></video><div class="play-pause-overlay"><svg class="play-icon hidden" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"></path></svg><svg class="pause-icon" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg></div>${actionsHTML}</div>`;
+    }
+    
+    // --- APP LOGIC ---
+    function shuffleFeed() { const posts = Array.from(postsContainer.children); posts.forEach(post => post.style.order = Math.floor(Math.random() * posts.length)); }
+    function startAutoRefresh() { if (!autoRefreshInterval) autoRefreshInterval = setInterval(shuffleFeed, 120000); }
+    function stopAutoRefresh() { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+    function addWatchedVideoHandlers() { document.querySelectorAll('.post-card[data-playmode="auto"] video').forEach(video => { video.addEventListener('timeupdate', (e) => { const vid = e.target; if (vid.dataset.watched === 'true') return; if (vid.duration > 0 && (vid.currentTime / vid.duration) > 0.8) { const postId = vid.closest('.post-card').dataset.id; watchedItems.add(postId); vid.dataset.watched = 'true'; } }); }); }
+    
+    function renderCategories() {
+        if (!dbCategories || dbCategories.length === 0) return;
+        const activeFilter = document.querySelector('.category-btn.active')?.dataset.filter || 'all';
+        categoryNav.innerHTML = dbCategories.map(cat => `<button class="category-btn ${cat.value === activeFilter ? 'active' : ''}" data-filter="${cat.value}">${cat.name}</button>`).join('');
+    }
+
+    function renderAllContent() {
+        let homeHTML = '';
+        const allItems = [...dbPosts];
+        for (let i = 2; i < allItems.length; i += 4) { if (dbShorts.length > 0) allItems.splice(i, 0, {type: 'shorts-shelf'}); }
+        homeHTML = allItems.map(item => { if(item.type === 'shorts-shelf') return createShortsShelfHTML(dbShorts); return createPostHTML(item); }).join('');
+        postsContainer.innerHTML = homeHTML;
+        shortsGridContainer.innerHTML = dbShorts.map(createShortsGridItemHTML).join('');
+        addObservers();
+        addWatchedVideoHandlers();
+    }
+
+    function openPlayerView(postId, shouldNotRotate = false) {
+        if (playerContainer.classList.contains('mini-player')) { restorePlayerView(); return; }
+        if(window.AndroidBridge && window.AndroidBridge.setShouldRotate) { AndroidBridge.setShouldRotate(!shouldNotRotate); }
+        const currentPost = dbPosts.find(p => p.id == postId);
+        if (!currentPost || !currentPost.media) return;
+        pauseAllVideos(null);
+        playerVideoContainer.innerHTML = `<video src="${currentPost.media}" controls autoplay></video>`;
+        currentPlayerVideo = playerVideoContainer.querySelector('video');
+        const markAsWatched = () => watchedItems.add(String(postId));
+        currentPlayerVideo.addEventListener('ended', markAsWatched);
+        currentPlayerVideo.addEventListener('timeupdate', () => { if (currentPlayerVideo.duration > 0 && (currentPlayerVideo.currentTime / currentPlayerVideo.duration) > 0.95) { markAsWatched(); } });
+        const actionsHTML = `<a href="${currentPost.media}" download="sharechat-media" class="action-btn" title="डाउनलोड"><svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"></path></svg></a><button class="action-btn whatsapp-icon" onclick="AndroidBridge.shareOnWhatsApp('यह देखें: ${currentPost.media}')" title="WhatsApp पर शेयर करें"><svg viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.487 5.235 3.487 8.413.003 6.557-5.338 11.892-11.894 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.296-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.626.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.289.173-1.413z"></path></svg></button><button class="action-btn share-btn" data-url="${currentPost.media}" data-text="यह पोस्ट देखें!" title="शेयर"><svg viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3s3-1.34 3-3-1.34-3-3-3z"></path></svg></button>`;
+        playerActionsContainer.innerHTML = actionsHTML;
+        playerActionsContainer.style.display = 'flex';
+        const upNextPosts = dbPosts.filter(post => post.playmode === 'click' && post.id != postId);
+        playerFeedContainer.innerHTML = createShortsShelfHTML(dbShorts) + upNextPosts.map(p => createPostHTML(p)).join('');
+        playerView.style.display = 'block'; mainContent.style.display = 'none'; playerView.scrollTop = 0; document.body.style.overflow = 'hidden';
+    }
+    
+    function restorePlayerView() { playerContainer.classList.remove('mini-player'); playerView.classList.remove('is-minimized'); mainContent.style.display = 'none'; document.body.style.overflow = 'hidden'; document.querySelector('header').style.display = 'none'; if (currentPlayerVideo) { currentPlayerVideo.play().catch(()=>{}); } }
+    function closePlayer() { if (currentPlayerVideo) { currentPlayerVideo.pause(); currentPlayerVideo = null; } playerVideoContainer.innerHTML = ''; playerActionsContainer.innerHTML = ''; playerActionsContainer.style.display = 'none'; playerView.style.display = 'none'; playerView.classList.remove('is-minimized'); mainContent.style.display = 'block'; document.body.style.overflow = 'auto'; playerContainer.classList.remove('mini-player'); playerContainer.style.transform = ''; document.querySelector('header').style.display = 'flex'; }
+    function openShortsViewer(shortSrc) { const originalIndex = dbShorts.indexOf(shortSrc); if (originalIndex === -1) return; const orderedShorts = [...dbShorts.slice(originalIndex), ...dbShorts.slice(0, originalIndex)]; mainContent.style.display = 'none'; shortsViewer.style.display = 'block'; document.body.style.overflow = 'hidden'; shortsViewer.innerHTML = orderedShorts.map(createFullScreenShortHTML).join(''); shortsViewer.scrollTo({ top: 0, behavior: 'auto' }); if (shortsViewer.classList.contains('interaction-needed')) shortsViewer.classList.remove('interaction-needed'); const videoToPlay = shortsViewer.querySelector('video'); if (videoToPlay) { videoToPlay.currentTime = 0; videoToPlay.play().catch(()=>{}); } addObservers(); }
+    document.body.addEventListener('click', e => { const clickablePost = e.target.closest('.post-card[data-playmode="click"]'); if (clickablePost) { return; } const clickedShelfShort = e.target.closest('.shelf-short-card, .shorts-grid-item'); if (clickedShelfShort) { openShortsViewer(clickedShelfShort.dataset.src); } if (e.target.closest('.close-shorts-btn')) { shortsViewer.style.display = 'none'; mainContent.style.display = 'block'; document.body.style.overflow = 'auto'; shortsViewer.innerHTML = ''; } const shareBtn = e.target.closest('.share-btn'); if (shareBtn) { e.stopPropagation(); const { url, text } = shareBtn.dataset; if (navigator.share) { navigator.share({ title: 'ShareChat Video', text: text, url: window.location.href }).catch(console.error); } else if (window.AndroidBridge && window.AndroidBridge.shareText) { AndroidBridge.shareText(text + "\n" + (url || window.location.href)); } else { alert('शेयर करने की सुविधा उपलब्ध नहीं है।'); } } });
+    document.getElementById('close-player-btn').addEventListener('click', closePlayer);
+    document.getElementById('mini-player-close-btn').addEventListener('click', (e) => { e.stopPropagation(); closePlayer(); });
+    playerContainer.addEventListener('click', (e) => { if (playerContainer.classList.contains('mini-player') && !e.target.closest('#mini-player-close-btn')) { restorePlayerView(); } });
+    const shortsObserver = new IntersectionObserver((entries) => { entries.forEach(entry => { const video = entry.target; if (entry.isIntersecting) { if (!shortsViewer.classList.contains('interaction-needed')) { video.currentTime = 0; video.play().catch(() => {}); } } else { video.pause(); } }); }, { threshold: 0.8 });
+    const shelfObserver = new IntersectionObserver((entries) => { entries.forEach(entry => { entry.target[entry.isIntersecting ? 'play' : 'pause'](); }); }, { threshold: 0.5 });
+    function addObservers() { document.querySelectorAll('#shorts-viewer video').forEach(v => shortsObserver.observe(v)); document.querySelectorAll('.shelf-short-card video').forEach(v => shelfObserver.observe(v)); }
+    shortsViewer.addEventListener('click', (e) => { if(e.target.closest('.action-btn, .close-shorts-btn')) return; const card = e.target.closest('.short-video-card'); if (card) { if (shortsViewer.classList.contains('interaction-needed')) { shortsViewer.classList.remove('interaction-needed'); const firstVideo = card.querySelector('video'); if(firstVideo) { firstVideo.currentTime = 0; firstVideo.play().catch(()=>{}); } return; } const video = card.querySelector('video'); const overlay = card.querySelector('.play-pause-overlay'); const playIcon = overlay.querySelector('.play-icon'); const pauseIcon = overlay.querySelector('.pause-icon'); if (video.paused) { video.play(); } else { video.pause(); } playIcon.classList.toggle('hidden', !video.paused); pauseIcon.classList.toggle('hidden', video.paused); overlay.classList.add('show'); setTimeout(() => overlay.classList.remove('show'), 500); } });
+    let touchStartY = 0, touchMoveY = 0, isDragging = false;
+    playerContainer.addEventListener('touchstart', (e) => { if (playerContainer.classList.contains('mini-player')) return; isDragging = true; touchStartY = e.touches[0].clientY; touchMoveY = touchStartY; playerContainer.style.transition = 'none'; }, {passive: true});
+    playerContainer.addEventListener('touchmove', (e) => { if (!isDragging) return; touchMoveY = e.touches[0].clientY; const deltaY = touchMoveY - touchStartY; if (deltaY > 0) playerContainer.style.transform = `translateY(${deltaY}px)`; }, {passive: true});
+    playerContainer.addEventListener('touchend', () => { if (!isDragging) return; isDragging = false; playerContainer.style.transition = ''; const deltaY = touchMoveY - touchStartY; if (deltaY > 100) { playerContainer.classList.add('mini-player'); playerView.classList.add('is-minimized'); mainContent.style.display = 'block'; document.body.style.overflow = 'auto'; document.querySelector('header').style.display = 'flex'; } playerContainer.style.transform = ''; });
+    let longPressTimer, startX, startY;
+    function handleVideoPress(event) { const video = event.target.closest('video, .h-card-thumbnail, .shelf-short-card, .short-video-card'); if (!video) return; startX = event.touches[0].clientX; startY = event.touches[0].clientY; const targetVideo = video.querySelector('video') || video; longPressTimer = setTimeout(() => { targetVideo.playbackRate = 2.0; }, 500); }
+    function handleVideoRelease(event) { clearTimeout(longPressTimer); document.querySelectorAll('video').forEach(v => v.playbackRate = 1.0); }
+    function handleVideoMove(event) { if (!longPressTimer) return; const deltaX = Math.abs(startX - event.touches[0].clientX); const deltaY = Math.abs(startY - event.touches[0].clientY); if (deltaX > 10 || deltaY > 10) clearTimeout(longPressTimer); }
+    document.body.addEventListener('touchstart', handleVideoPress, { passive: true });
+    document.body.addEventListener('touchend', handleVideoRelease);
+    document.body.addEventListener('touchcancel', handleVideoRelease);
+    document.body.addEventListener('touchmove', handleVideoMove, { passive: true });
+    function switchTab(activeFeed) { document.querySelectorAll('.feed').forEach(f => f.classList.remove('active')); activeFeed.classList.add('active'); if (activeFeed.id === 'home-feed') { startAutoRefresh(); } else { stopAutoRefresh(); } }
+    categoryNav.addEventListener('click', e => { const target = e.target; if (target.matches('.category-btn')) { document.querySelectorAll('.category-btn').forEach(b => b.classList.remove('active')); target.classList.add('active'); const filter = target.dataset.filter; if (filter === 'shorts-nav') { switchTab(shortsFeed); return; } else { switchTab(document.getElementById('home-feed')); } document.querySelectorAll('#posts-container > *').forEach(element => { let show = false; const type = element.dataset.type, playmode = element.dataset.playmode, category = element.dataset.category, id = element.dataset.id; if (filter === 'all') show = true; else if (filter === 'image') show = type === 'image'; else if (filter === 'click') show = playmode === 'click'; else if (filter === 'auto') show = playmode === 'auto'; else if (filter === 'shorts-shelf') show = type === 'shorts-shelf'; else if (filter === 'watched') show = watchedItems.has(id); else show = category === filter; element.classList.toggle('hidden', !show); }); } });
+    function exitCustomFullscreen() { if (videoInCustomFullscreen && originalVideoParent) { videoInCustomFullscreen.controls = true; originalVideoParent.appendChild(videoInCustomFullscreen); customFullscreenView.style.display = 'none'; fullscreenVideoWrapper.firstChild.remove(); videoInCustomFullscreen = null; originalVideoParent = null; currentFullscreenPostIndex = -1; } }
+    exitCustomFullscreenBtn.addEventListener('click', exitCustomFullscreen);
+    document.addEventListener('fullscreenchange', () => { const videoElement = document.fullscreenElement; if (videoElement && (videoElement.closest('.post-card') || videoElement.closest('#player-video-container'))) { document.exitFullscreen(); originalVideoParent = videoElement.parentElement; videoInCustomFullscreen = videoElement; videoInCustomFullscreen.controls = true; const videoSrc = videoInCustomFullscreen.querySelector('source') ? videoInCustomFullscreen.querySelector('source').src : videoInCustomFullscreen.src; currentFullscreenPostIndex = dbPosts.findIndex(post => post.media === videoSrc && post.type === 'video'); fullscreenVideoWrapper.prepend(videoElement); customFullscreenView.style.display = 'flex'; } });
+    function updateFsPlayPauseIcon() { if (!videoInCustomFullscreen) return; const playIcon = fsPlayPauseBtn.querySelector('.play-icon'); const pauseIcon = fsPlayPauseBtn.querySelector('.pause-icon'); playIcon.classList.toggle('hidden', !videoInCustomFullscreen.paused); pauseIcon.classList.toggle('hidden', videoInCustomFullscreen.paused); }
+    function playNextInFullscreen() { const videoPosts = dbPosts.filter(p => p.type === 'video' && p.playmode !== 'short'); if (currentFullscreenPostIndex === -1 || videoPosts.length === 0) return; let currentIndexInFiltered = videoPosts.findIndex(p => p.id === dbPosts[currentFullscreenPostIndex].id); currentIndexInFiltered = (currentIndexInFiltered + 1) % videoPosts.length; const nextPost = videoPosts[currentIndexInFiltered]; currentFullscreenPostIndex = dbPosts.findIndex(p => p.id === nextPost.id); videoInCustomFullscreen.src = nextPost.media; videoInCustomFullscreen.play(); }
+    function playPrevInFullscreen() { const videoPosts = dbPosts.filter(p => p.type === 'video' && p.playmode !== 'short'); if (currentFullscreenPostIndex === -1 || videoPosts.length === 0) return; let currentIndexInFiltered = videoPosts.findIndex(p => p.id === dbPosts[currentFullscreenPostIndex].id); currentIndexInFiltered = (currentIndexInFiltered - 1 + videoPosts.length) % videoPosts.length; const prevPost = videoPosts[currentIndexInFiltered]; currentFullscreenPostIndex = dbPosts.findIndex(p => p.id === prevPost.id); videoInCustomFullscreen.src = prevPost.media; videoInCustomFullscreen.play(); }
+    fsPlayPauseBtn.addEventListener('click', () => { if (videoInCustomFullscreen) { if (videoInCustomFullscreen.paused) videoInCustomFullscreen.play(); else videoInCustomFullscreen.pause(); updateFsPlayPauseIcon(); } });
+    fsNextBtn.addEventListener('click', playNextInFullscreen);
+    fsPrevBtn.addEventListener('click', playPrevInFullscreen);
+    customFullscreenView.addEventListener('click', (e) => { if (e.target.closest('.fs-control-btn') || e.target.closest('#exit-custom-fullscreen-btn') || e.target.closest('video')) { return; } clearTimeout(controlsTimeout); fsControlsOverlay.classList.toggle('show'); updateFsPlayPauseIcon(); if (fsControlsOverlay.classList.contains('show')) { controlsTimeout = setTimeout(() => fsControlsOverlay.classList.remove('show'), 3000); } });
+    
+    function syncAndRender() {
+        const sharedData = getSharedData();
+        dbPosts = sharedData.posts || [];
+        dbShorts = sharedData.shortVideos || [];
+        
+        // **FIX:** If categories from admin are not available, use a default set
+        if (sharedData.categories && sharedData.categories.length > 0) {
+            dbCategories = sharedData.categories;
+        } else {
+            // Fallback default categories
+            dbCategories = [
+                 { name: 'सभी', value: 'all' },
+                 { name: 'पोस्ट', value: 'image' },
+                 { name: 'वीडियो प्लेयर', value: 'click' },
+                 { name: 'सिंपल वीडियो', value: 'auto' },
+                 { name: 'शॉर्ट्स', value: 'shorts-nav' },
+                 { name: 'देखे हुए', value: 'watched' },
+                 { name: 'फिल्म', value: 'film' },
+                 { name: 'कॉमेडी', value: 'comedy' },
+                 { name: 'गाने', value: 'gane' },
+            ];
+        }
+        
+        renderCategories();
+        renderAllContent();
+        startAutoRefresh();
+    }
+
+    function init() { 
+        syncAndRender();
+        window.addEventListener('storage', (event) => {
+            if (event.key === SHARED_DATA_KEY) {
+                console.log("Data updated from admin panel. Refreshing content...");
+                syncAndRender();
+            }
+        });
+    }
+    init();
+
+</script>
+
+</body>
+</html>
